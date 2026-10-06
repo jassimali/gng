@@ -1,3 +1,5 @@
+import email
+
 from fastapi import FastAPI
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -36,3 +38,24 @@ def read_userdata():
         result = session.execute(query)
         data = [{"id": row.id, "name": row.name, "email":row.email} for row in result]
     return {"data": data}
+
+
+@app.post("/newdata")
+def write_data(id: int, name: str, age: int, email: str, password: str):
+    with SessionLocal() as session:
+        query = text(
+            'INSERT INTO users (id, name, age, email, pass) '
+            "VALUES (:id, :name, :age, :email, :password)"
+        )
+        session.execute(
+            query,
+            {
+                "id": id,
+                "name": name,
+                "age": age,
+                "email": email,
+                "password": password,
+            },
+        )
+        session.commit()
+    return {"message": "Data added successfully"}
