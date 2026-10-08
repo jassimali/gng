@@ -1,4 +1,5 @@
-import email
+import os
+from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from sqlalchemy import create_engine
@@ -9,7 +10,8 @@ app = FastAPI()
 
 
 #"postgresql://username:password@localhost:5432/my_database"
-SQLALCHEMY_DATABASE_URL = "postgresql://localhost:5433/postgres"
+load_dotenv()
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
@@ -31,7 +33,7 @@ def read_sum(a: str, b: str):
     return {"message": f"The sum of {a} and {b} is {int(a) + int(b)}"}
 
 
-@app.get("/userdata")
+@app.get("/usersdata")
 def read_userdata():
     with SessionLocal() as session:
         query = text("SELECT id, name, email FROM users")
