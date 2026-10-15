@@ -1,27 +1,31 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-
-#"postgresql://username:password@localhost:5432/my_database"
 load_dotenv()
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is missing from .env")
+
+engine = create_engine(DATABASE_URL)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
 
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) 
+class Base(DeclarativeBase):
+    pass
 
 
-
-with SessionLocal() as session:
-    # Use text() to safely format your raw SQL query
-    query = text("SELECT uid, username FROM users")
-    
-    # Execute and pass parameters as a dictionary
-    result = session.execute(query)
-    
-    # Fetch data (returns Row objects)
-    for row in result:
-        print(f"ID: {row.uid}, Name: {row.name}")
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

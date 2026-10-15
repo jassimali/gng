@@ -1,21 +1,19 @@
-import os
-from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+#from pwdlib import PasswordHash
 
-from fastapi import FastAPI
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
+from database import get_db,Base,engine
+from models import User,Book
+from schemas import UserCreate, UserResponse, BookCreate, BookResponse
 
 app = FastAPI()
 
 
-#"postgresql://username:password@localhost:5432/my_database"
-load_dotenv()
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+Base.metadata.create_all(bind=engine)
 
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) 
+#password_hasher = PasswordHash.recommended()
 
 
 @app.get("/")
@@ -29,35 +27,63 @@ def read_greeting(name: str):
 
 
 @app.get("/add")
-def read_sum(a: str, b: str):
-    return {"message": f"The sum of {a} and {b} is {int(a) + int(b)}"}
+def read_sum(a: int, b: int):
+    return {"message": f"The sum of {a} and {b} is {a + b}"}
 
 
-@app.get("/usersdata")
-def read_userdata():
-    with SessionLocal() as session:
-        query = text("SELECT id, name, email FROM users")
-        result = session.execute(query)
-        data = [{"id": row.id, "name": row.name, "email":row.email} for row in result]
-    return {"data": data}
+@app.get("/usersdata", response_model=list[UserResponse])
+def read_userdata(db: Session = Depends(get_db)):
+    users = db.scalars(select(User)).all()
+    return users
 
 
-@app.post("/newdata")
-def write_data(id: int, name: str, age: int, email: str, password: str):
-    with SessionLocal() as session:
-        query = text(
-            'INSERT INTO users (id, name, age, email, pass) '
-            "VALUES (:id, :name, :age, :email, :password)"
+@app.post("/newdata", response_model=UserResponse, status_code=201)
+def write_data(
+    user: UserCreate,
+    db: Session = Depends(get_db)
+):
+    new_user = User(
+        id=user.id,
+        name=user.name,
+        age=user.age,
+        email=str(user.email),
+        password_hash=user.password
+    )
+
+    db.add(new_user)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A database constraint was violated"
         )
-        session.execute(
-            query,
-            {
-                "id": id,
-                "name": name,
-                "age": age,
-                "email": email,
-                "password": password,
-            },
-        )
-        session.commit()
-    return {"message": "Data added successfully"}
+
+    db.refresh(new_user)
+
+    return new_user
+
+@app.post("/books", response_model=BookResponse, status_code=201)
+def create_book(
+    book: BookCreate,
+    db: Session = Depends(get_db)
+):
+    new_book = Book(
+        title=book.title,
+        author=book.author,
+        price=book.price,
+        published_year=book.published_year
+    )
+
+    db.add(new_book)
+    db.commit()
+    db.refresh(new_book)
+
+    return new_book
+
+@app.get("/books", response_model=list[BookResponse])
+def get_books(db: Session = Depends(get_db)):
+    books = db.scalars(select(Book)).all()
+    return books
